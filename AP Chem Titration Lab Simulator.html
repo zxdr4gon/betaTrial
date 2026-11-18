@@ -1,0 +1,173 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>AP Chem Titration Lab Simulator</title>
+<style>
+:root{--bg:#f4f6f9;--card:#fff;--tx:#1b2430;--mu:#5d6b7c;--bd:#d6dce4;--ac:#1f6feb;--ok:#1a7f37;--bad:#cf222e;--wn:#9a6700;--gr:#e8ecf1;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f141a;--card:#171e27;--tx:#e6ebf1;--mu:#93a1b3;--bd:#2c3745;--ac:#58a6ff;--ok:#3fb950;--bad:#ff7b72;--wn:#d29922;--gr:#232d39}}
+:root[data-theme="dark"]{--bg:#0f141a;--card:#171e27;--tx:#e6ebf1;--mu:#93a1b3;--bd:#2c3745;--ac:#58a6ff;--ok:#3fb950;--bad:#ff7b72;--wn:#d29922;--gr:#232d39}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.w{max-width:1000px;margin:0 auto;padding:12px}h1{font-size:19px;margin:2px 0}h2{font-size:15px;margin:0 0 8px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:10px 0}button,input{font:inherit;color:inherit}
+button{background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:6px 10px;cursor:pointer}
+button.on{background:var(--ac);color:#fff;border-color:var(--ac)}button:disabled{opacity:.45;cursor:not-allowed}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:12px}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
+input[type=text]{background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:5px 7px;width:100%}input[type=range]{width:100%}
+.m{color:var(--mu);font-size:12.5px}.ok{color:var(--ok)}.bad{color:var(--bad)}.wn{color:var(--wn)}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid var(--bd);padding:4px;font-size:12.5px}
+.big{font:600 20px ui-monospace,Menlo,monospace}.r{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}.ov{overflow-x:auto}
+@keyframes sp{to{transform:rotate(360deg)}}@keyframes dr{0%{transform:translateY(0);opacity:1}85%{opacity:1}100%{transform:translateY(40px);opacity:0}}
+.spin{animation:sp .4s linear infinite;transform-box:fill-box;transform-origin:center}.drip{animation:dr .6s linear infinite}
+</style></head><body><div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
+<script>
+const{useState:S,useEffect:E,useRef:R}=React;
+const ce=(t,p,...c)=>{if(p&&typeof p.style==='string'){p={...p,style:Object.fromEntries(p.style.split(';').filter(x=>x.trim()).map(x=>{const i=x.indexOf(':');return[x.slice(0,i).trim().replace(/-(\w)/g,(_,y)=>y.toUpperCase()),x.slice(i+1).trim()]}))}}return React.createElement(t,p,...c)};
+const h=htm.bind(ce);
+const K=[3.13,4.76,6.4].map(p=>10**-p),Cb=.08896,V0=50,MM=192.12;
+const phOf=(Vb,C)=>{const T=V0+Vb,Na=Cb*Vb/T,CT=C*10/T,[a,b,c]=K;let lo=0,hi=14;for(let i=0;i<45;i++){const m=(lo+hi)/2,x=10**-m,Dn=x**3+a*x*x+a*b*x+a*b*c,z=(a*x*x+2*a*b*x+3*a*b*c)/Dn;(Na+x-1e-14/x-CT*z>0)?lo=m:hi=m}return(lo+hi)/2};
+const nz=()=>(Math.random()+Math.random()+Math.random()-1.5)*.012;
+const raw=(p,L)=>7+(p-7)*L.sl+L.of+nz();
+const rd=(p,L,c)=>{const r=raw(p,L);return c?7+(r-c.r7)*c.m:r};
+const newLab=()=>({C:.045+Math.random()*.02,dpm:20.5+Math.random()*7,sl:.9+Math.random()*.06,of:.1+Math.random()*.25});
+const col=p=>{const a=Math.min(1,Math.max(0,(p-8)/2)),o=[255,206,120],q=[214,36,140];return`rgba(${[0,1,2].map(i=>Math.round(o[i]*(1-a)+q[i]*a))},${.45+.5*a})`};
+const f=x=>x==null||!isFinite(x)?'—':(+x).toPrecision(4);
+const deriv=(p,w)=>p.map((q,i)=>{const a=Math.max(0,i-w),b=Math.min(p.length-1,i+w);return{x:q.x,y:b>a&&p[b].x>p[a].x?(p[b].y-p[a].y)/(p[b].x-p[a].x):0}});
+const D=[[1000,'a mL↔L conversion slip (×1000)'],[.001,'converting mL→L twice'],[3,'a missing ÷3 mole-ratio step (1 acid : 3 NaOH)'],[1/3,'dividing by 3 twice'],[24,'bottle scaling (240 mL vs 10 mL) misapplied'],[1/24,'bottle scaling inverted'],[MM,'multiplying by molar mass twice'],[1/MM,'forgetting to multiply by 192.12 g/mol']];
+
+const Chart=({pts,t,xmax,y0,y1,cx,onMove,onPin,pin,dots,zero})=>{
+const W=640,H=215,l=44,r=10,tp=20,b=28,X=v=>l+v/xmax*(W-l-r),Y=v=>H-b-(v-y0)/(y1-y0)*(H-tp-b);
+const xt=[];for(let v=0;v<=xmax;v+=xmax>30?10:5)xt.push(v);const yt=[0,1,2,3,4].map(i=>y0+(y1-y0)*i/4);
+const gv=e=>{const q=e.currentTarget.getBoundingClientRect();return((e.clientX-q.left)/q.width*W-l)/(W-l-r)*xmax};
+const d=pts.filter(p=>p.x<=xmax).map((p,i)=>(i?'L':'M')+X(p.x).toFixed(1)+' '+Y(p.y).toFixed(1)).join('');
+return h`<svg viewBox="0 0 ${W} ${H}" style="width:100%;touch-action:none;background:var(--card);border:1px solid var(--bd);border-radius:8px;display:block" onPointerMove=${e=>onMove&&onMove(gv(e))} onPointerLeave=${()=>onMove&&onMove(null)} onClick=${e=>onPin&&onPin(gv(e))}>
+${yt.map(v=>h`<g key=${'y'+v}><line x1=${l} x2=${W-r} y1=${Y(v)} y2=${Y(v)} stroke="var(--gr)"/><text x=${l-4} y=${Y(v)+4} textAnchor="end" fontSize="10" fill="var(--mu)">${v.toFixed(y1-y0>20?0:1)}</text></g>`)}
+${xt.map(v=>h`<text key=${'x'+v} x=${X(v)} y=${H-b+13} textAnchor="middle" fontSize="10" fill="var(--mu)">${v}</text>`)}
+${zero&&y0<0&&y1>0?h`<line x1=${l} x2=${W-r} y1=${Y(0)} y2=${Y(0)} stroke="var(--mu)" strokeDasharray="4 3"/>`:null}
+<text x=${l+4} y=${13} fontSize="11" fontWeight="600" fill="var(--tx)">${t}</text><text x=${W/2} y=${H-3} textAnchor="middle" fontSize="10" fill="var(--mu)">Volume NaOH (mL)</text>
+${dots?pts.filter(p=>p.x<=xmax).map((p,i)=>h`<circle key=${i} cx=${X(p.x)} cy=${Y(p.y)} r="1.5" fill="var(--ac)"/>`):h`<path d=${d} fill="none" stroke="var(--ac)" strokeWidth="1.6"/>`}
+${cx!=null?h`<line x1=${X(cx)} x2=${X(cx)} y1=${tp} y2=${H-b} stroke="var(--mu)" strokeDasharray="3 3"/>`:null}
+${pin!=null?h`<line x1=${X(pin)} x2=${X(pin)} y1=${tp} y2=${H-b} stroke="var(--bad)" strokeWidth="1.5"/>`:null}</svg>`};
+
+const Bench=({v,ph,flow,rate})=>{const lv=Math.max(0,(60-v)/60),hl=65+Math.min(v,30)*1.2;
+return h`<svg viewBox="0 0 300 390" style="width:100%;max-width:320px;display:block;margin:auto">
+<rect x="20" y="372" width="130" height="12" fill="#6b7480"/><rect x="34" y="14" width="8" height="360" fill="#8a94a1"/><rect x="34" y="28" width="96" height="6" fill="#8a94a1"/>
+<rect x="130" y="14" width="46" height="122" rx="4" fill="var(--card)" stroke="var(--mu)"/><rect x="132" y=${14+122*(1-lv)} width="42" height=${Math.max(0,122*lv-2)} fill="rgba(90,150,255,.45)"/>
+<text x="153" y="10" textAnchor="middle" fontSize="9" fill="var(--mu)">60 mL NaOH reservoir</text>
+<rect x="146" y="138" width="14" height="8" fill="#e0a800"/><text x="182" y="145" fontSize="9" fill="var(--mu)">top valve: rate</text>
+<rect x="146" y="150" width="14" height="8" fill=${flow?'#2da44e':'#cf222e'}/><text x="182" y="157" fontSize="9" fill="var(--mu)">bottom: ${flow?'OPEN':'closed'}</text>
+<rect x="118" y="164" width="70" height="26" rx="4" fill="#2b3a4d"/><text x="153" y="181" textAnchor="middle" fontSize="9" fill="#fff">Drop counter</text><circle cx="124" cy="170" r="2.5" fill=${flow?'#3fb950':'#555'}/>
+<line x1="153" y1="190" x2="153" y2="198" stroke="#8a94a1" strokeWidth="2"/>
+${flow?h`<circle className="drip" style=${{animationDuration:Math.max(.3,Math.min(1.2,1/rate))+'s'}} cx="153" cy="204" r="3" fill="rgba(90,150,255,.9)"/>`:null}
+<path d="M190 215 C190 170,262 190,268 110" stroke="#444" fill="none" strokeWidth="2"/><rect x="186" y="215" width="8" height="110" rx="3" fill="#5a6573"/><text x="272" y="108" fontSize="9" fill="var(--mu)">pH probe</text>
+<path d="M104 238 V350 H202 V238" fill="none" stroke="var(--mu)" strokeWidth="2"/><rect x="105" y=${350-hl} width="96" height=${hl} fill=${col(ph)}/>
+<rect className="spin" x="140" y="342" width="26" height="6" fill="#fff" stroke="#333"/><text x="153" y="232" textAnchor="middle" fontSize="9" fill="var(--mu)">beaker: juice + water + indicator</text>
+<rect x="92" y="352" width="124" height="20" rx="3" fill="#444"/><text x="132" y="366" textAnchor="middle" fontSize="9" fill="#fff">stir station</text><circle cx="205" cy="362" r="3" fill="#3fb950"/></svg>`};
+
+function App(){
+const[lab,setLab]=S(newLab),[tab,setTab]=S(0),[cb,setCb]=S({}),[dc,setDc]=S({drops:0,open:false,rate:2.8}),[dpmU,setDpmU]=S(null),[dpIn,setDpIn]=S(''),[msg,setMsg]=S(''),
+[B,setB]=S({drops:0,data:[]}),[rb,setRb]=S(1.5),[run,setRun]=S(null),[sm,setSm]=S(6),[show,setShow]=S({d1:true,d2:true}),[cx,setCx]=S(null),[ve,setVe]=S(null),
+[C,setC]=S({drops:0,tr:0}),[rc,setRc]=S(6),[trials,setTrials]=S([null,null]),[cm,setCm]=S(''),
+[ans,setAns]=S({ve:'',a:'',b:{},c1:'',c2:'',d:''}),[gr,setGr]=S(false),[rv,setRv]=S(false);
+const cal=cb.r7&&cb.r4?{r7:cb.r7,m:3/(cb.r7-cb.r4)}:null,X=R({}),acc=R(0);X.current={lab,cal,dpmU,run,dc,rb,rc};
+const dropsB=n=>setB(b=>{const{lab:L,cal:c,dpmU:u}=X.current;let d=b.drops;const data=b.data.slice();for(let i=0;i<n;i++){d++;data.push({x:d/u,y:rd(phOf(d/L.dpm,L.C),L,c)})}return{drops:d,data}});
+const tick=()=>{const q=X.current,rate=q.run==='cal'?q.dc.rate:q.run==='B'?q.rb:q.rc;acc.current+=rate*2;const n=Math.floor(acc.current);acc.current-=n;if(!n)return;
+if(q.run==='cal')setDc(d=>({...d,drops:d.drops+n}));else if(q.run==='B')dropsB(n);else setC(c=>({...c,drops:c.drops+n}))};
+E(()=>{if(!run)return;const id=setInterval(tick,100);return()=>clearInterval(id)},[run]);
+E(()=>{const last=B.data[B.data.length-1];if(run==='B'&&last&&(last.y>11.8||B.drops/lab.dpm>38))setRun(null);
+if(run==='cal'&&dc.drops/lab.dpm>=10){setRun(null);setDc(d=>({...d,open:false}))}if(run==='C'&&C.drops/lab.dpm>35)setRun(null)},[B,dc,C]);
+const reset=()=>{setLab(newLab());setCb({});setDc({drops:0,open:false,rate:2.8});setDpmU(null);setDpIn('');setMsg('');setB({drops:0,data:[]});setRun(null);setVe(null);setC({drops:0,tr:0});setTrials([null,null]);setCm('');setAns({ve:'',a:'',b:{},c1:'',c2:'',d:''});setGr(false);setRv(false)};
+const avg3=p=>(raw(p,lab)+raw(p,lab)+raw(p,lab))/3;
+const Pn=(l,v)=>h`<div style="min-width:90px"><div className="m">${l}</div><div className="big">${v}</div></div>`;
+const rvol=Math.round(dc.drops/lab.dpm*10)/10;
+
+const tA=h`<div className="g"><div className="c"><h2>1 · pH sensor 2-point calibration</h2><p className="m">Rinse the probe, place it in each buffer, wait for a stable reading, then store it.</p>
+<div className="r"><button onClick=${()=>setCb(c=>({...c,r7:avg3(7)}))}>Probe in pH 7.00 → store</button><span>${cb.r7?'✓ raw '+cb.r7.toFixed(3):'not stored'}</span></div>
+<div className="r"><button onClick=${()=>setCb(c=>({...c,r4:avg3(4)}))}>Probe in pH 4.00 → store</button><span>${cb.r4?'✓ raw '+cb.r4.toFixed(3):'not stored'}</span></div>
+<p className=${cal?'ok':'m'}>${cal?'Calibrated: slope factor '+cal.m.toFixed(3)+' (pH per raw unit).':'Store both buffers to calibrate.'}</p></div>
+<div className="c"><h2>2 · Drop counter calibration</h2><p className="m">Open the bottom valve, set the top valve to about 1 drop every 2 s, collect 5–10 mL in the cylinder.</p>
+<div className="r"><div style="flex:1"><div className="m">Top valve: ${dc.rate.toFixed(1)} drops/s (1 drop per ${(1/dc.rate).toFixed(1)} s)</div><input type="range" min="0.1" max="4" step="0.1" value=${dc.rate} onChange=${e=>setDc(d=>({...d,rate:+e.target.value}))}/></div></div>
+${dc.rate<.4||dc.rate>.65?h`<div className="wn m">Target ≈ 0.5 drops/s (the sim runs ~20× real time, so rates look fast).</div>`:h`<div className="ok m">Good rate (~1 drop / 2 s).</div>`}
+<div className="r"><button className=${dc.open?'on':''} onClick=${()=>{const o=!dc.open;setDc(d=>({...d,open:o}));setRun(o?'cal':null)}}>${dc.open?'Close bottom valve':'Open bottom valve'}</button><button onClick=${()=>{setRun(null);setDc(d=>({...d,drops:0,open:false}))}}>Empty cylinder</button></div>
+<div className="r"><svg width="60" height="150" viewBox="0 0 60 150"><rect x="20" y="10" width="24" height="130" fill="none" stroke="var(--mu)"/><rect x="21" y=${140-13*dc.drops/lab.dpm} width="22" height=${13*dc.drops/lab.dpm} fill="rgba(90,150,255,.5)"/>${[0,5,10].map(v=>h`<text key=${v} x="2" y=${143-13*v} fontSize="9" fill="var(--mu)">${v}</text>`)}</svg>
+${Pn('Drops counted',dc.drops)}${Pn('Cylinder (mL)',rvol.toFixed(1))}</div>
+<div className="r"><div style="flex:1"><div className="m">Your drops/mL (drops ÷ mL)</div><input type="text" value=${dpIn} placeholder="e.g. 24.3" onChange=${e=>setDpIn(e.target.value)}/></div>
+<button className="on" onClick=${()=>{const v=parseFloat(dpIn),m=dc.drops/Math.max(.1,rvol);if(!(v>10&&v<40))return setMsg('Enter a ratio between 10 and 40 drops/mL.');if(rvol<3)return setMsg('Collect at least 3 mL (5+ is better).');if(Math.abs(v-m)>1)return setMsg('Recheck: your drops ÷ mL data gives '+m.toFixed(1)+'.');setDpmU(v);setMsg('✓ Saved '+v+' drops/mL'+(rvol<5?' (more volume = better precision).':'.'))}}>Use value</button></div>
+<div className=${dpmU?'ok':'m'}>${msg||(dpmU?'✓ Using '+dpmU+' drops/mL':'')}</div></div></div>
+<div className="c"><button onClick=${()=>{setCb({r7:7+lab.of,r4:4+lab.of-3*(lab.sl-1)*-1+0});setCb({r7:7+lab.of,r4:7+(4-7)*lab.sl+lab.of});setDpmU(+lab.dpm.toFixed(1));setMsg('Ideal calibration applied.')}}>Skip: apply an ideal calibration</button> <span className="m">Both must be complete before Part B.</span></div>`;
+
+const av=B.drops/lab.dpm,live=rd(phOf(av,lab.C),lab,cal),ready=cal&&dpmU,last=B.data[B.data.length-1];
+const xm=Math.max(25,Math.ceil((last?last.x:0)/5)*5+5);
+const tB=h`<div className="g"><div className="c"><h2>Lab bench</h2><${Bench} v=${av} ph=${phOf(av,lab.C)} flow=${run==='B'} rate=${rb}/></div>
+<div className="c"><h2>Controls</h2>${ready?null:h`<div className="bad m">Finish both calibrations in Part A first.</div>`}
+<div className="r"><button className=${run==='B'?'on':''} disabled=${!ready} onClick=${()=>setRun(run==='B'?null:'B')}>${run==='B'?'Stop':'Start titration'}</button><button disabled=${!ready||run==='B'} onClick=${()=>dropsB(1)}>+1 drop</button><button onClick=${()=>{setRun(null);setB({drops:0,data:[]});setVe(null)}}>Refill / clear run</button></div>
+<div className="m">Drop rate: ${rb.toFixed(1)} drops/s (sim ~20× real time)</div><input type="range" min="0.3" max="8" step="0.1" value=${rb} onChange=${e=>setRb(+e.target.value)}/>
+<div className="r">${Pn('NaOH (mL)',ready?(B.drops/(dpmU||1)).toFixed(2):'—')}${Pn('pH',live.toFixed(2))}${Pn('Drops',B.drops)}</div>
+<p className="m">Recording stops once pH passes ~11.8. Phenolphthalein turns faint pink near pH 8.2–8.5 and bright magenta if you overshoot.</p></div></div>
+<div className="c"><${Chart} pts=${B.data} dots=${true} t="pH vs. volume of NaOH (mL)" xmax=${xm} y0=${0} y1=${14}/></div>`;
+
+const d1=B.data.length>12?deriv(B.data,sm):[],d2=deriv(d1,sm),peak=d1.length?d1.reduce((a,p)=>p.y>a.y?p:a).x:null,veB=ve??peak;
+const near=(a,x)=>x==null||!a.length?null:a.reduce((p,q)=>Math.abs(q.x-x)<Math.abs(p.x-x)?q:p);
+const rg=a=>{const y=a.map(p=>p.y),lo=Math.min(...y),hi=Math.max(...y),p=(hi-lo)*.06||1;return[lo-p,hi+p]};
+const[a1,b1]=d1.length?rg(d1):[0,1],[a2,b2]=d1.length?rg(d2):[-1,1],n0=near(B.data,cx),n1=near(d1,cx),n2=near(d2,cx);
+const pin=v=>{if(v>=0&&v<=xm)setVe(+v.toFixed(2))};
+const vC=C.drops/lab.dpm,pC=phOf(vC,lab.C),aC=(pC-8)/2,dispC=dpmU?C.drops/dpmU:0,tr=trials[C.tr];
+const hint=veB==null?'Finish Part B and find Ve first.':dispC<veB-3?'Fast drops are fine here.':dispC<veB-2?'Switch to slow drops now.':'Go drop by drop. Stop at the first faint persistent pink.';
+const rec=()=>{if(aC<.05)return setCm('No pink yet. Keep adding drops.');setRun(null);const t=[...trials];t[C.tr]={v:dispC,over:aC>.6};setTrials(t);setCm(aC>.6?'Overshot (bright magenta). Redo this trial.':'Endpoint recorded.')};
+const okT=trials.filter(t=>t&&!t.over).map(t=>t.v),allV=[veB,...okT].filter(Number.isFinite),best=allV.length?allV.reduce((s,x)=>s+x,0)/allV.length:null;
+const t3=h`<div className="c"><h2>Data analysis · derivatives</h2>
+<div className="r"><label><input type="checkbox" checked=${show.d1} onChange=${e=>setShow({...show,d1:e.target.checked})}/> 1st derivative</label><label><input type="checkbox" checked=${show.d2} onChange=${e=>setShow({...show,d2:e.target.checked})}/> 2nd derivative</label>
+<span className="m">Smoothing ±${sm} points</span><input type="range" style="max-width:160px" min="2" max="15" value=${sm} onChange=${e=>setSm(+e.target.value)}/></div>
+${B.data.length<13?h`<div className="m">Run the Part B titration first.</div>`:h`<div style="display:grid;gap:8px">
+<${Chart} pts=${B.data} dots=${true} t="pH vs. V (mL)" xmax=${xm} y0=${0} y1=${14} cx=${cx} onMove=${setCx} onPin=${pin} pin=${ve}/>
+${show.d1?h`<${Chart} pts=${d1} t="dpH/dV vs. V (peak = equivalence)" xmax=${xm} y0=${a1} y1=${b1} cx=${cx} onMove=${setCx} onPin=${pin} pin=${ve}/>`:null}
+${show.d2?h`<${Chart} pts=${d2} t="d²pH/dV² vs. V (zero crossing = equivalence)" xmax=${xm} y0=${a2} y1=${b2} cx=${cx} onMove=${setCx} onPin=${pin} pin=${ve} zero=${true}/>`:null}</div>
+<div className="r">${Pn('Crosshair V',cx!=null&&cx>=0?cx.toFixed(2):'—')}${Pn('pH',n0?n0.y.toFixed(2):'—')}${Pn('dpH/dV',n1?n1.y.toFixed(1):'—')}${Pn('d²',n2?n2.y.toFixed(0):'—')}</div>
+<p className="m">Hover to examine; click to pin the equivalence volume Ve (red line).</p>
+<div className="r">${Pn('Pinned Ve (mL)',ve!=null?ve.toFixed(2):'—')}<button onClick=${()=>setVe(null)}>Clear pin</button></div>`}</div>
+<div className="c"><h2>Part C · Trials 2 and 3 (repeat titrations)</h2>
+<div className="g"><div><${Bench} v=${vC} ph=${pC} flow=${run==='C'} rate=${rc}/></div><div>
+<p><b>Trial ${C.tr+2}</b> · ${hint}</p>
+<div className="r"><button disabled=${!ready||veB==null} onClick=${()=>{setRc(6);setRun('C')}}>Fast (6/s)</button><button disabled=${!ready||veB==null} onClick=${()=>{setRc(.4);setRun('C')}}>Slow (0.4/s)</button><button onClick=${()=>setRun(null)}>Stop</button><button disabled=${!ready||run==='C'} onClick=${()=>setC(c=>({...c,drops:c.drops+1}))}>+1 drop</button></div>
+<div className="r">${Pn('Counter (mL)',dispC.toFixed(2))}${Pn('Drops',C.drops)}</div>
+<div className="r"><button className="on" disabled=${!ready||!!tr||C.drops<1} onClick=${rec}>Record endpoint</button><button onClick=${()=>{setRun(null);setC({drops:0,tr:C.tr});const t=[...trials];t[C.tr]=null;setTrials(t);setCm('')}}>Redo</button>
+${C.tr===0&&tr&&!tr.over?h`<button onClick=${()=>{setC({drops:0,tr:1});setCm('')}}>Start Trial 3 →</button>`:null}</div><div className=${tr&&!tr.over?'ok':'wn'}>${cm}</div></div></div>
+<table><tr><th>Trial</th><th>Net NaOH (mL)</th><th>vs Part B Ve</th><th>Status</th></tr>
+<tr><td>1 (Part B)</td><td>${veB!=null?veB.toFixed(2):'—'}</td><td>—</td><td>${ve!=null?'pinned':peak!=null?'auto peak':'—'}</td></tr>
+${trials.map((t,i)=>h`<tr key=${i}><td>${i+2}</td><td>${t?t.v.toFixed(2):'—'}</td><td>${t&&veB!=null?((t.v-veB)/veB*100).toFixed(1)+'%':'—'}</td><td>${t?(t.over?'overshot':'ok'):'—'}</td></tr>`)}</table></div>`;
+
+const tru=lab.C,nT=.03*tru,veT=nT/Cb*1000,rel=(x,y)=>Math.abs(x-y)/Math.abs(y);
+const veA=parseFloat(ans.ve),vv=isNaN(veA)?best:veA,ownA=vv*Cb/1000,a=parseFloat(ans.a),aR=isNaN(a)?ownA:a;
+const c1=parseFloat(ans.c1),c1R=isNaN(c1)?aR/3:c1,c2=parseFloat(ans.c2),c2R=isNaN(c2)?c1R/.01:c2,dd=parseFloat(ans.d);
+const chk=(x,own,t)=>{if(isNaN(x))return{s:'bad',m:'Enter a number.'};if(rel(x,own)<.03){const e=(own-t)/t*100;return Math.abs(e)<5?{s:'ok',m:`Correct and accurate (${e.toFixed(1)}% from the true value).`}:{s:'wn',m:`Your arithmetic is consistent, but it is ${e.toFixed(1)}% from the simulated true value. The error comes from Ve (check drops/mL calibration, pH calibration, the endpoint, or the derivative peak).`}}
+const q=D.find(([r])=>Math.abs(x/own/r-1)<.06);return{s:'bad',m:'Expected about '+f(own)+' from your previous step. Possible cause: '+(q?q[1]:'a unit or arithmetic slip')+'.'}};
+const mark={ok:'✓',wn:'~',bad:'✗'};
+const G=[['(a) Moles NaOH at equivalence',chk(a,ownA,nT),`n = M × V = 0.08896 mol/L × ${f(vv/1000)} L = ${f(ownA)} mol`],
+['(c) Moles citric acid in 10.00 mL',chk(c1,aR/3,nT/3),`1 acid : 3 NaOH, so n(acid) = ${f(aR)} ÷ 3 = ${f(aR/3)} mol`],
+['(c) Molarity of citric acid',chk(c2,c1R/.01,tru),`M = n ÷ V = ${f(c1R)} mol ÷ 0.01000 L = ${f(c1R/.01)} M`],
+['(d) Mass in 240 mL bottle (g)',chk(dd,c2R*.24*MM,tru*.24*MM),`m = M × V × MM = ${f(c2R)} mol/L × 0.240 L × 192.12 g/mol = ${f(c2R*.24*MM)} g`]];
+const ex=[[aR/3,aR,0,0],[-aR/3,-aR,aR/3,aR],[0,0,aR/3,aR]],cells=ex.map((r,i)=>r.map((e,j)=>{const x=parseFloat(ans.b[i+','+j]);return isNaN(x)?false:e===0?Math.abs(x)<1e-9:rel(x,e)<.03}));
+const rn=['Before','Change','After'],cn=['H₃C₆H₅O₇','NaOH','Na₃C₆H₅O₇','H₂O'];
+const setB2=(k,v)=>setAns(s=>({...s,b:{...s.b,[k]:v}}));
+const inp=(k,ph)=>h`<input type="text" value=${ans[k]} placeholder=${ph} onChange=${e=>setAns({...ans,[k]:e.target.value})}/>`;
+const t4=h`<div className="g"><div className="c"><h2>Your calculations</h2>
+<div className="m">Equivalence volume Ve (mL) used ${best!=null?h`<button onClick=${()=>setAns({...ans,ve:best.toFixed(2)})}>Use my best Ve (${best.toFixed(2)})</button>`:null}</div>${inp('ve','mL')}
+<div className="m" style="margin-top:8px">(a) Moles NaOH at equivalence (mol)</div>${inp('a','e.g. 1.65e-3')}
+<div className="m" style="margin-top:8px">(c) Moles citric acid in 10.00 mL (mol)</div>${inp('c1','mol')}
+<div className="m" style="margin-top:8px">(c) Molarity of citric acid (M)</div>${inp('c2','mol/L')}
+<div className="m" style="margin-top:8px">(d) Mass citric acid in 240 mL bottle (g)</div>${inp('d','g')}</div>
+<div className="c ov"><h2>(b) BCA table (moles)</h2><p className="m">H₃C₆H₅O₇ + 3 NaOH → Na₃C₆H₅O₇ + 3 H₂O</p><table><tr><th></th>${cn.map(c=>h`<th key=${c}>${c}</th>`)}</tr>
+${rn.map((r,i)=>h`<tr key=${r}><td>${r}</td>${cn.map((c,j)=>h`<td key=${j} style=${gr?{outline:'2px solid '+(cells[i][j]?'var(--ok)':'var(--bad)')}:null}><input type="text" style="min-width:70px" value=${ans.b[i+','+j]||''} onChange=${e=>setB2(i+','+j,e.target.value)}/></td>`)}</tr>`)}</table>
+<p className="m">Grade checks stoichiometry against your (a), at equivalence both reactants are used up.</p></div></div>
+<div className="r"><button className="on" onClick=${()=>setGr(true)}>Check my answers</button><button onClick=${()=>setRv(!rv)}>${rv?'Hide':'Reveal'} true values</button></div>
+${gr?h`<div className="c"><h2>Feedback</h2>${G.map(([t,g,s])=>h`<div key=${t} style="margin-bottom:8px"><b className=${g.s}>${mark[g.s]} ${t}</b><div>${g.m}</div>${g.s!=='ok'?h`<div className="m">Step: ${s}</div>`:null}</div>`)}
+<div><b className=${cells.flat().every(Boolean)?'ok':'bad'}>${cells.flat().every(Boolean)?'✓':'✗'} (b) BCA table</b><div>${cells.flat().every(Boolean)?'All 12 cells match.':'Red cells are off. Before: acid = n(NaOH) ÷ 3, NaOH = n(NaOH). Change: −n(acid), −n(NaOH), +n(acid) for the salt, +3 n(acid) for water. After: Before + Change (both reactants reach 0).'}</div></div></div>`:null}
+${rv?h`<div className="c"><h2>True values (this run)</h2><div className="r">${Pn('Juice M',tru.toFixed(4))}${Pn('Ve (mL)',veT.toFixed(2))}${Pn('n NaOH',f(nT))}${Pn('Mass 240 mL (g)',(tru*.24*MM).toFixed(3))}${Pn('drops/mL',lab.dpm.toFixed(1))}</div></div>`:null}`;
+
+return h`<div className="w"><div className="r" style="justify-content:space-between"><h1>Titration of Citric Acid in Orange Juice</h1><button onClick=${reset}>New lab (new hidden molarity)</button></div>
+<div className="m">0.08896 M NaOH · 10.00 mL juice + 40 mL water · Vernier Drop Counter, pH sensor, stir station</div>
+<div className="tabs">${['Part A: Setup','Part B: Titration','Analysis & Part C','Post-Lab Check'].map((t,i)=>h`<button key=${t} className=${tab===i?'on':''} onClick=${()=>setTab(i)}>${t}</button>`)}</div>
+${[tA,tB,t3,t4][tab]}</div>`}
+ReactDOM.createRoot(document.getElementById('root')).render(h`<${App}/>`);
+</script></body></html>
